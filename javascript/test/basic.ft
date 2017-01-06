@@ -2,6 +2,7 @@ template typeBlock(type:Nubmber){
 	<div>this is for unknow type<div>
 }
 
+template typeBlock(type==0){
 	<span> This is the type for: #type# <span>
 }
 
