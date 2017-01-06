@@ -1,0 +1,27 @@
+template typeBlock(type:Nubmber){
+	<div>this is for unknow type<div>
+}
+
+	<span> This is the type for: #type# <span>
+}
+
+template typeBlock(type==1){
+	<p>  p This is the type for: #type# </p>
+}
+
+template typeBlock(type==2){
+	<div> div This is the type for: #type# </div>
+}
+
+template typeBlock(type==3){
+	<span> div This is the type for: #type# </span>
+}
+
+template outer(type:Number,desc:String){
+	<div>
+		#desc#
+	</div>
+	<div>
+		#this.typeBlock(type)#
+	</div>
+}

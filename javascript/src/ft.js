@@ -18,6 +18,7 @@
 
         FT -> statements
         statements-> templateFunctionDef
+                   | importDef
                    | statements
                    | //Empty
         templateFunctionDef-> TemplateKey_T FunctionName_T ( templateFunctionArgumentsDef ) { functionBody }
@@ -37,38 +38,6 @@
         mixin-> Mixin_T Str_T Mixin_T
 
     */
-    var Token = {
-        Str_T:0,
-        LogicOp2_T:1,
-        LogicOp1_T:2,
-        FunctionName_T:3,
-        TemplateKey_T:4,
-        Mixin_T:5,
-        Mixin_T:6,
-        EOF_T:7,
-    };
-    var State = {
-        FT:0,
-        statements:1;
-
-    };
-    var Lexer = 
-    [
-        {reg:/\s|\n|\r\n/,res:-1},//Skip the white space
-        {reg:/>=/,res:Token.LogicOp2_T},
-        {reg:/<=/,res:Token.LogicOp2_T},
-        {reg:/>/,res:Token.LogicOp2_T},
-        {reg:/</,res:Token.LogicOp2_T},
-        {reg:/!/,res:Token.LogicOp1_T},
-        {reg:/^template$/,res:Token.TemplateKey_T},
-        {reg:/^#$/,res:Token.Mixin_T},
-        {reg:/^(_|\w)[\w|\d]*/,res:Token.FunctionName_T},
-        {reg:/^[\w\W]+/,res:Token.Str_T}
-    ];
-
-    var StateMarix=[
-        []
-    ];
 
     var currentState=0;
 
@@ -80,15 +49,15 @@
                 body:[
                     {
                         content:"<li>",
-                        type:0// string
+                        type:1// string
                     },
                     {
                         content:"g(n)",
-                        type:1// mixin
+                        type:2// mixin
                     },
                     {
                         content:"</li>",
-                        type:0// string
+                        type:1// string
                     }
                 ],
                 args:{
@@ -101,30 +70,32 @@
                     ]
                 }// or
                 args:{
-                    condition:true //condition pattern match
-                    arguments:[
-                        {
-                            condition:"n>=1"
-                        }
-                    ]
+                    condition:"n>=1"
                 }
             }
         */
-        ] 
+        ],
+        imports:[]
     };
-
-    function eat(token){
-
-    };
+    var class2type = {} ;
+    var typeList = [
+        "Boolean", "Number", "String", "Function", 
+        "Array", "Date", "RegExp", "Object", "Error"
+    ];
+    typeList.forEach(function(e,i){
+        class2type[ "[object " + e + "]" ] = e;
+    }) ;
     var state = {
-        findTemplate:0,
+        findNode:0,
         findTemplateName:1,
-        findTempalteArgs:2,
-        findStr:3,
-        findMixin:4
+        findTemplateArgs:2,
+        findTemplateBody:3,
+        findImportPath:4
     }
-    function parse(input){
-        
+    function parse(input,path){
+        if(!path){
+            path = "input string"
+        }
 
         //Validate
         if((typeof str !=='string') || (str.constructor !==String)){
@@ -136,50 +107,152 @@
         var columnCount = 0;
         var index=0;
         var currentTemplate = {};
+        var currentImport = {};
+        var currentArgs = {};
+        var comment = false;
+        var mixinOpen = false;
         var char;
         for(index=0;index<=input.length;index++){
-            /*if(index==input.length){
-                eat(token.EOF_T);
-            }else{
-                for(var i=0;i<Lexer.length;i++){
-
-                }
-            }*/
-            /*if(index!=input.length){
+            if(index!=input.length){
                 char = input.charAt[index];
             }else{
-                char = "EOF";
+                //EOF
+                if(currentState !== state.findNode){
+                    throw Error("Syntax Error: Unexpectd EOF");
+                }   
             }
             columnCount++;
             if(char === '\n' || char==='\r\n'){
                 lineCount++;
                 columnCount = 0;
+                if(comment){
+                    comment = false;
+                }
                 continue;
             }
-            if(currentState == state.findTemplate){
+            if(comment){
+                continue;
+            }
+            if(currentState !== state.findTemplateBody){
                 if(char === ' '){
                     continue;
                 }
-                if(buffer.length == "template".length){]
-                    if(buffer == "template"){
-                        currentState = state.findTemplateName;
-                        buffer = "";
-                        currentTemplate = {};
-                    }else{
-                        throw Error("Syntax Error: Expect template defination");
-                    }
-                }else{
-                    if(char == "EOF"){
-                        throw Error("Syntax Error: Cannot find any template function defination");
-                    }
-                    buffer += char;
+            }
+            
+            if(currentState == state.findNode){
+                buffer += char;
+                if(buffer == "template"){
+                    currentState = state.findTemplateName;
+                    buffer = "";
+                    currentTemplate = {};
+                }
+                if(buffer == "import"){
+                    currentState = state.findImportPath;
+                    buffer = "";
+                    currentImport = {};
+                }
+                if(buffer == "//"){
+                    comment = true;
                 }
             }
             if(currentState == state.findTemplateName){
-                if(char === ' ' && buffer.length == 0){
-                    continue;
-                }else if(char === ' ' && buffer.length)
-            }*/
+                if(char==="("){
+                    if(!buffer.length){
+                        throw Error("Syntax Error: Expect template function name \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
+                    }
+                    currentTemplate.name = buffer;
+                    //to-do test if it is a legal function name
+                    buffer = "";
+                    currentState = state.findTemplateArgs;
+                    currentTemplate.args = {arguments:[]};
+                    currentTemplate.body = [];
+                    currentArgs = {};
+                }else{
+                    buffer += char;
+                }
+            }
+            if(currentState == state.findTemplateArgs){
+                if(char===")"){
+                    if(currentTemplate.args.type){
+                        currentArgs.type = buffer;
+                        currentTemplate.args.arguments.push(currentArgs);
+                        currentArgs = {};
+                    }else{
+                        //add test syntax here
+                        currentTemplate.args.condition = buffer;
+                    }
+                }else if(char ===","){
+                    if(!buffer.length){
+                        throw Error("Syntax Error: Expect argurment type defination here\nFile: " 
+                                    + path + " Line:" + lineCount + " Column:" + columnCount);
+                    }
+                    currentArgs.type = buffer.trim();
+                    var legal = false;
+                    for(var i=0; i< typeList.length; i++){
+                        if(typeList[i]==buffer){
+                            legal = true;
+                            break;
+                        }
+                    }
+                    if(!legal){
+                        throw Error("Syntax Error: Expect argurment type is " 
+                                    + typeList.join("|") 
+                                    + " but got " + buffer 
+                                    + "\nFile: " + path + "Line:" + lineCount + " Column:" + columnCount);
+                    }
+                    currentTemplate.args.arguments.push(currentArgs);
+                    currentArgs = {};
+                    buffer = "";
+                }else if(char === ":"){
+                    if(!buffer.length){
+                        throw Error("Syntax Error: Expect argurment name \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
+                    }
+                    currentArgs.name = buffer;
+                    buffer = "";
+                    currentTemplate.args.type = true;
+                }else if(char === "{"){
+                    currentState = state.findTemplateBody;
+                }else{
+                    buffer += char;
+                }
+            }
+            if(currentState == state.findTemplateBody){
+                if(char=="#"){
+                    if(mixinOpen){
+                        mixinOpen = false;
+                        currentTemplate.body.push({content:buffer,type:2});
+                        buffer = "";
+                    }else{
+                        //string
+                        currentTemplate.body.push({content:buffer,type:1});
+                        buffer = "";
+                        mixinOpen = true;
+                    }
+                }else if(char == "}"){
+                    if(mixinOpen){
+                        //error
+                        throw Error("Syntax Error: Expect mixin close '#' \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
+                    }else{
+                        //string
+                        currentTemplate.body.push({content:buffer,type:1});
+                        buffer = "";
+                    }
+                    ast.templateFunctions.push(currentTemplate);
+                    currentState = state.findNode;
+                }else{
+                    buffer += char;
+                }
+            }
+            if(currentState == state.findImportPath){
+                if(char==";"){
+                    if(buffer.length){
+                        //to-do test if a path
+                        ast.imports.push(buffer);
+                    }else{
+                        throw Error("Syntax Error: Expect import path \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
+                    }
+                }
+            }
         }
     }
 
@@ -189,10 +262,7 @@
         var buildInFuncPrefix = "__ft__build__in__";
         var templateFunctionsText = {};
     };
-    var class2type = {} ;
-    "Boolean Number String Function Array Date RegExp Object Error".split(" ").forEach(function(e,i){
-        class2type[ "[object " + e + "]" ] = e;
-    }) ;
+    
     function typeof_(obj){
         if ( obj == null ){
             return String( obj );
@@ -263,9 +333,9 @@
             var f = ast.templateFunctions[i];
             var body = 'var '+ buildInFuncPrefix +'res="";';
             for(var j=0;j<f.body.length;j++){
-                if(f.body[j].type==0){
+                if(f.body[j].type==1){
                     body += buildInFuncPrefix+'res+="'+f.body[j].content+'";';
-                }else if(f.body[j].type==1){
+                }else if(f.body[j].type==2){
                     body += buildInFuncPrefix+'res+=('+f.body[j].content+');';
                 }
             }
@@ -290,20 +360,7 @@
                 templateFunctionsText[f.name].argumentsLength = f.args.arguments.length;
             }else if(f.args.condition){
                 //add pattern match conditon
-                var conds = ""
-                if(f.args.arguments.length){
-                    conds = "if("
-                }
-                for(var j=0;j<f.args.arguments.length;j++){
-                    conds += f.args.arguments[j].condition;
-                    if(j<args.arguments.length-1){
-                        conds += "&&";
-                    }
-                }
-                if(f.args.arguments.length){
-                    conds += "){"+body"}";  
-                    body = conds;
-                }
+                body= "if("+f.args.condition+"){"+body"}";
             }
             templateFunctionsText[f.name].body += body;
         }
