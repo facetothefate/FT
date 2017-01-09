@@ -1,3 +1,6 @@
-test
+dependencies:
+  pre:
+    - npm install
+test:
   override:
     - npm run test
