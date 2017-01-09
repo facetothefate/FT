@@ -1,18 +1,71 @@
-(function (root, factory) {
+(function(root, factory) {
     if (typeof define === 'function' && define.amd) {
-    
+
         define([false], factory);
-    
+
     } else if (typeof module === 'object' && module.exports) {
-    
-        module.exports= factory(true);
-    
+
+        module.exports = factory(true);
+
     } else {
         root.FT = factory(false);
     }
 
-}(this, function (node) {
+}(this, function(node) {
     'use strict';
+    //set true will have some debug output
+    var debug = false;
+    /* File system */
+    function readFile(path, callback) {
+        if (node) {
+            var fs = require('fs');
+            return fs.readFile(path, callback);
+        } else {
+            xmlhttp.open("GET", path, true);
+            xmlhttp.onreadystatechange = function() {
+                if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                    callback(null, xmlhttp.responseText);
+                }
+                //todo 
+                //handle error here
+            };
+        }
+    }
+
+    /* runtime lib */
+    var class2type = {};
+    var typeList = [
+        "Boolean", "Number", "String", "Function",
+        "Array", "Date", "RegExp", "Object", "Error"
+    ];
+    typeList.forEach(function(e, i) {
+        class2type["[object " + e + "]"] = e;
+    });
+
+    function typeof_(obj) {
+        if (obj == null) {
+            return String(obj);
+        }
+        return typeof obj === "object" || typeof obj === "function" ?
+            class2type[class2type.toString.call(obj)] || "object" :
+            typeof obj;
+    }
+
+    function checkTypeName(s) {
+        for (var i = 0; i < typeList.length; i++) {
+            if (s === typeList[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function isPath(s) {
+        var regexp = /((ftp|http|https):\/\/)?(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/;
+        return regexp.test(s);
+    }
+
+    /* Parser */
     /****
         Grammar：
 
@@ -39,383 +92,490 @@
 
     */
 
-    var currentState=0;
-
     var ast = {
-        templateFunctions:[
-        /**
-            {
-                name:"F",//function name
-                body:[
-                    {
-                        content:"<li>",
-                        type:1// string
-                    },
-                    {
-                        content:"g(n)",
-                        type:2// mixin
-                    },
-                    {
-                        content:"</li>",
-                        type:1// string
-                    }
-                ],
-                args:{
-                    type:true //definination
-                    arguments:[
+        templateFunctions: [
+            /* structure
+                {
+                    name:"F",//function name
+                    body:[
                         {
-                            name:"n",
-                            type:"Number"
+                            content:"<li>",
+                            type:1// string
+                        },
+                        {
+                            content:"g(n)",
+                            type:2// mixin
+                        },
+                        {
+                            content:"</li>",
+                            type:1// string
                         }
-                    ]
-                }// or
-                args:{
-                    condition:"n>=1"
+                    ],
+                    args:{
+                        type:true //definination
+                        arguments:[
+                            {
+                                name:"n",
+                                type:"Number"
+                            }
+                        ]
+                    }// or
+                    args:{
+                        arguments:[
+                            {
+                                condition:"n>=1"
+                            }
+                        ]
+                    }
                 }
-            }
-        */
+            */
         ],
-        imports:[]
+        imports: {
+            /*
+                "../path/to/template/file" : false //init false, parsed, true
+            */
+        }
     };
-    var class2type = {} ;
-    var typeList = [
-        "Boolean", "Number", "String", "Function", 
-        "Array", "Date", "RegExp", "Object", "Error"
-    ];
-    typeList.forEach(function(e,i){
-        class2type[ "[object " + e + "]" ] = e;
-    }) ;
-    var state = {
-        findNode:0,
-        findTemplateName:1,
-        findTemplateArgs:2,
-        findTemplateBody:3,
-        findImportPath:4
+
+    function cleanAst() {
+        ast = {
+            templateFunctions: [],
+            imports: {}
+        };
     }
-    function parse(input,path){
-        if(!path){
+
+    var state = {
+        findNode: 0,
+        findTemplateName: 1,
+        findTemplateArgs: 2,
+        findTemplateBody: 3,
+        findImportPath: 4
+    };
+
+    function parse(input, path) {
+        if (!path) {
             path = "input string"
         }
-
         //Validate
-        if((typeof str !=='string') || (str.constructor !==String)){
+        if ((typeof_(input) !== "string")) {
             throw Error("Please give a validate input string");
         }
-        var buffer="";
+        var buffer = "";
         var token;
         var lineCount = 1;
         var columnCount = 0;
-        var index=0;
+        var index = 0;
         var currentTemplate = {};
         var currentImport = {};
         var currentArgs = {};
+        var currentState = 0;
         var comment = false;
         var mixinOpen = false;
         var char;
-        for(index=0;index<=input.length;index++){
-            if(index!=input.length){
-                char = input.charAt[index];
-            }else{
+        for (index = 0; index <= input.length; index++) {
+            if (index != input.length) {
+                char = input[index];
+            } else {
                 //EOF
-                if(currentState !== state.findNode){
+                if (currentState !== state.findNode) {
                     throw Error("Syntax Error: Unexpectd EOF");
-                }   
+                } else if (buffer.length != 0) {
+                    throw Error("Syntax Error: Unexpectd EOF");
+                }
             }
             columnCount++;
-            if(char === '\n' || char==='\r\n'){
+            if (char === '\n' || char === '\r') {
                 lineCount++;
                 columnCount = 0;
-                if(comment){
+                if (comment) {
                     comment = false;
                 }
                 continue;
             }
-            if(comment){
+            if (comment) {
                 continue;
             }
-            if(currentState !== state.findTemplateBody){
-                if(char === ' '){
+
+            if (char === ' ' || char === '\t') {
+                //for template body we take all char
+                if (currentState !== state.findTemplateBody) {
                     continue;
                 }
             }
-            
-            if(currentState == state.findNode){
+
+            if (currentState === state.findNode) {
                 buffer += char;
-                if(buffer == "template"){
+                if (buffer === "template") {
                     currentState = state.findTemplateName;
                     buffer = "";
                     currentTemplate = {};
                 }
-                if(buffer == "import"){
+                if (buffer === "import") {
                     currentState = state.findImportPath;
                     buffer = "";
                     currentImport = {};
                 }
-                if(buffer == "//"){
+                if (buffer === "//") {
                     comment = true;
                 }
-            }
-            if(currentState == state.findTemplateName){
-                if(char==="("){
-                    if(!buffer.length){
-                        throw Error("Syntax Error: Expect template function name \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
+            } else if (currentState === state.findTemplateName) {
+                if (char === "(") {
+                    if (!buffer.length) {
+                        throw Error("Syntax Error: Expect template function name \nFile: " +
+                            path + " \nLine:" + lineCount + " Column:" + columnCount);
                     }
                     currentTemplate.name = buffer;
                     //to-do test if it is a legal function name
                     buffer = "";
                     currentState = state.findTemplateArgs;
-                    currentTemplate.args = {arguments:[]};
+                    currentTemplate.args = {
+                        arguments: []
+                    };
                     currentTemplate.body = [];
                     currentArgs = {};
-                }else{
+                } else {
                     buffer += char;
                 }
-            }
-            if(currentState == state.findTemplateArgs){
-                if(char===")"){
-                    if(currentTemplate.args.type){
+            } else if (currentState === state.findTemplateArgs) {
+                if (char === ")") {
+                    if (currentTemplate.args.type) {
+                        //check type
+                        if(!checkTypeName(buffer)){
+                            throw Error("Syntax Error: Unknown Type:"+buffer+"\nFile: " +
+                                path + " \nLine:" + lineCount + " Column:" + columnCount);
+                        }
                         currentArgs.type = buffer;
+                        buffer = "";
                         currentTemplate.args.arguments.push(currentArgs);
                         currentArgs = {};
-                    }else{
+                    } else {
                         //add test syntax here
                         currentTemplate.args.condition = buffer;
+                        buffer = "";
                     }
-                }else if(char ===","){
-                    if(!buffer.length){
-                        throw Error("Syntax Error: Expect argurment type defination here\nFile: " 
-                                    + path + " Line:" + lineCount + " Column:" + columnCount);
+                } else if (char === ",") {
+                    if (!currentTemplate.args.type) {
+                        throw Error("Syntax Error: Expect argument type defination but got condition defination\nFile: " +
+                            path + " \nLine:" + lineCount + " Column:" + columnCount);
                     }
-                    currentArgs.type = buffer.trim();
+                    if (!buffer.length) {
+                        throw Error("Syntax Error: Expect argurment type defination here\nFile: " +
+                            path + " \nLine:" + lineCount + " Column:" + columnCount);
+                    }
+                    //check type
+                    if(!checkTypeName(buffer)){
+                        throw Error("Syntax Error: Unknown Type:"+buffer+"\nFile: " +
+                            path + " \nLine:" + lineCount + " Column:" + columnCount);
+                    }
+                    currentArgs.type = buffer;
                     var legal = false;
-                    for(var i=0; i< typeList.length; i++){
-                        if(typeList[i]==buffer){
+                    for (var i = 0; i < typeList.length; i++) {
+                        if (typeList[i] == buffer) {
                             legal = true;
                             break;
                         }
                     }
-                    if(!legal){
-                        throw Error("Syntax Error: Expect argurment type is " 
-                                    + typeList.join("|") 
-                                    + " but got " + buffer 
-                                    + "\nFile: " + path + "Line:" + lineCount + " Column:" + columnCount);
+                    if (!legal) {
+                        throw Error("Syntax Error: Expect argurment type is " +
+                            typeList.join("|") +
+                            " but got " + buffer +
+                            "\nFile: " + path + "Line:" + lineCount + " Column:" + columnCount);
                     }
                     currentTemplate.args.arguments.push(currentArgs);
                     currentArgs = {};
                     buffer = "";
-                }else if(char === ":"){
-                    if(!buffer.length){
-                        throw Error("Syntax Error: Expect argurment name \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
+                } else if (char === ":") {
+                    if (!buffer.length) {
+                        throw Error("Syntax Error: Expect argurment name \nFile: " +
+                            path + " \nLine:" + lineCount + " Column:" + columnCount);
                     }
                     currentArgs.name = buffer;
                     buffer = "";
                     currentTemplate.args.type = true;
-                }else if(char === "{"){
+
+                } else if (char === "{") {
                     currentState = state.findTemplateBody;
-                }else{
+                } else {
                     buffer += char;
                 }
-            }
-            if(currentState == state.findTemplateBody){
-                if(char=="#"){
-                    if(mixinOpen){
+            } else if (currentState === state.findTemplateBody) {
+                if (char === "#") {
+                    if (mixinOpen) {
                         mixinOpen = false;
-                        currentTemplate.body.push({content:buffer,type:2});
+                        currentTemplate.body.push({
+                            content: buffer,
+                            type: 2
+                        });
                         buffer = "";
-                    }else{
+                    } else {
                         //string
-                        currentTemplate.body.push({content:buffer,type:1});
+                        currentTemplate.body.push({
+                            content: buffer,
+                            type: 1
+                        });
                         buffer = "";
                         mixinOpen = true;
                     }
-                }else if(char == "}"){
-                    if(mixinOpen){
+                } else if (char === "}") {
+                    if (mixinOpen) {
                         //error
-                        throw Error("Syntax Error: Expect mixin close '#' \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
-                    }else{
+                        throw Error("Syntax Error: Expect mixin close '#' \nFile: " +
+                            path + " \nLine:" + lineCount + " Column:" + columnCount);
+                    } else {
                         //string
-                        currentTemplate.body.push({content:buffer,type:1});
-                        buffer = "";
+                        if (buffer.length) {
+                            currentTemplate.body.push({
+                                content: buffer,
+                                type: 1
+                            });
+                            buffer = "";
+                        }
                     }
                     ast.templateFunctions.push(currentTemplate);
                     currentState = state.findNode;
-                }else{
+                    currentTemplate = {};
+                } else {
+                    buffer += char;
+                }
+            } else if (currentState === state.findImportPath) {
+                if (char === ";") {
+                    if (buffer.length) {
+                        if (isPath(buffer)) {
+                            ast.imports[buffer] = false;
+                            currentState = state.findNode;
+                            buffer = "";
+                        } else {
+                            throw Error("Invaild Path " +
+                                " \nLine:" + lineCount + " Column:" + columnCount);
+                        }
+                    } else {
+                        throw Error("Syntax Error: Expect import path \nFile: " +
+                            path + " \nLine:" + lineCount + " Column:" + columnCount);
+                    }
+                } else {
                     buffer += char;
                 }
             }
-            if(currentState == state.findImportPath){
-                if(char==";"){
-                    if(buffer.length){
-                        //to-do test if a path
-                        ast.imports.push(buffer);
-                    }else{
-                        throw Error("Syntax Error: Expect import path \nFile: "+path+" Line:"+lineCount+" Column:"+ columnCount);
-                    }
+        }
+        if (debug) {
+            console.log(JSON.stringify(ast, null, '    '));
+        }
+    }
+    /* Linker */
+    /*
+     * @breif this function will solve all the import AST
+     *        call the parse to the target file and mark the import 
+     *        have been done
+     */
+    function link(callback) {
+        var allCompiled = true;
+        for (var path in ast.imports) {
+            if (ast.imports.hasOwnProperty(path)) {
+                if (!ast.imports[path]) {
+                    allCompiled = false;
+                    readFile(path, 'utf8', function(err, data) {
+                        if (err) {
+                            throw err;
+                        } else {
+                            parse(data, path);
+                            link(callback);
+                        }
+                    });
+                    ast.imports[path] = true;
                 }
             }
         }
+        if (allCompiled) {
+            callback();
+        }
     }
 
+    /* Interpreter */
     var buildInFuncPrefix = "__ft__build__in__";
-    var templateFunctionsText = {};
-    function init(){
-        var buildInFuncPrefix = "__ft__build__in__";
-        var templateFunctionsText = {};
+    var objectCode = {};
+
+    function init() {
+        cleanAst();
+        buildInFuncPrefix = "__ft__build__in__";
+        objectCode = {};
     };
-    
-    function typeof_(obj){
-        if ( obj == null ){
-            return String( obj );
-        }
-        return typeof obj === "object" || typeof obj === "function" ?
-            class2type[ class2type.toString.call(obj) ] || "object" :
-            typeof obj;
-    }
-    var templateFunctionRunContext = function(){
+
+    var RunContext = function() {
+        //to-do, there should be a LRU cache save the function results
         this.typeof_ = typeof_;
-        this[buildInFuncPrefix + "isNumber"] = function(num){
-            return this.typeof_(num) === "Number";
+        this[buildInFuncPrefix + "isNumber"] = function(num) {
+            return this.typeof_(num) === "number";
         }
-        this[buildInFuncPrefix + "isStr"] = function(str){
-            return this.typeof_(str) === "String";
+        this[buildInFuncPrefix + "isString"] = function(func) {
+            return this.typeof_(func) === "string";
         }
-        this[buildInFuncPrefix + "isObject"] = function(obj){
-            return this.typeof_(obj) === "Object";
+        this[buildInFuncPrefix + "isObject"] = function(obj) {
+            return this.typeof_(obj) === "object";
         }
-        this[buildInFuncPrefix + "isArray"] = function(arr){
-            return this.typeof_(arr) === "Array";
+        this[buildInFuncPrefix + "isArray"] = function(arr) {
+            return this.typeof_(arr) === "array";
         }
-        this[buildInFuncPrefix + "isBool"] = function(bool){
-            return this.typeof_(bool) === "Boolean";
+        this[buildInFuncPrefix + "isBool"] = function(bool) {
+            return this.typeof_(bool) === "boolean";
         }
-        this[buildInFuncPrefix + "isFunc"] = function(func){
-            return this.typeof_(func) === "Function";
-        }
-        //useful for loop
-        this.map=function(arr,stepper){
-            if(!this[buildInFuncPrefix + "isArray"](arr)){
+        this[buildInFuncPrefix + "isFunction"] = function(func) {
+                return this.typeof_(func) === "function";
+            }
+            //useful for loop
+        this.map = function(arr, stepper) {
+            if (!this[buildInFuncPrefix + "isArray"](arr)) {
                 throw Error("function: Map:Type Error, 1st args must be an array, it is actually:" + this.typeof_(arr));
             }
-            if(!this[buildInFuncPrefix + "isFunc"](stepper)){
+            if (!this[buildInFuncPrefix + "isFunction"](stepper)) {
                 throw Error("function: Map:Type Error, 2nd args must be a function, it is actually:" + this.typeof_(stepper));
             }
-            var res="";
-            for(var i=0;i<arr.length;i++){
+            var res = "";
+            for (var i = 0; i < arr.length; i++) {
                 res += stepper(arr[i]);
             }
             return res;
         }
-    }
-    //to-do
-    /*
-    * @breif this function will solve all the import AST
-    *        call the parse to the target file and mark the import 
-    *        have been done
-    */
-    function handleImport(){
+    };
 
-    }
-
+    /*compiler*/
     /*
-    * @breif this function will translate a template function
-    *        to a javascript function
-    */
-    function regTemplateFunction(){
+     * @breif this function will translate a template function
+     *        to a javascript function
+     */
+    function compileObjCode() {
         //Init the template functions
-        for(var i = 0;i < ast.templateFunctions.length; i++){
-            templateFunctionsText[ast.templateFunctions[i].name]={
-                body:"",
-                arguments:"",
-                argumentsLength:0 //in case we need this in future
+        for (var i = 0; i < ast.templateFunctions.length; i++) {
+            objectCode[ast.templateFunctions[i].name] = {
+                body: "",
+                arguments: "",
+                argumentsLength: 0 //in case we need this in future
             };
         }
-        for(var i = 0;i < ast.templateFunctions.length; i++){
+        for (var i = 0; i < ast.templateFunctions.length; i++) {
             var f = ast.templateFunctions[i];
-            var body = 'var '+ buildInFuncPrefix +'res="";';
-            for(var j=0;j<f.body.length;j++){
-                if(f.body[j].type==1){
-                    body += buildInFuncPrefix+'res+="'+f.body[j].content+'";';
-                }else if(f.body[j].type==2){
-                    body += buildInFuncPrefix+'res+=('+f.body[j].content+');';
+            var body = 'var ' + buildInFuncPrefix + 'res="";';
+            for (var j = 0; j < f.body.length; j++) {
+                if (f.body[j].type == 1) {
+                    body += buildInFuncPrefix + 'res+="' + f.body[j].content + '";';
+                } else if (f.body[j].type == 2) {
+                    body += buildInFuncPrefix + 'res+=(' + f.body[j].content + ');';
                 }
             }
-            body +='return '+buildInFuncPrefix+'res;';
+            body += 'return ' + buildInFuncPrefix + 'res;';
 
             var argsText = "";
-            if(f.args.type){
+            if (f.args.type) {
                 var polymorphism = "if(";
-                for(var j=0;j<f.args.arguments.length;j++){
+                for (var j = 0; j < f.args.arguments.length; j++) {
                     var name = f.args.arguments[j].name;
                     var type = f.args.arguments[j].type;
                     argsText += name;
-                    if(j<args.arguments.length-1){
+                    if (j < f.args.arguments.length - 1) {
                         argsText += ",";
                     }
-                    polymorphism += "this."+buildInFuncPrefix+type+"("+name+")&&";
+                    polymorphism += "this." + buildInFuncPrefix + "is" + type + "(" + name + ")&&";
                 }
-                polymorphism += "arguments.length=="+f.args.arguments.length + "{";
+                polymorphism += "arguments.length==" + f.args.arguments.length + "){";
                 body = polymorphism + body + "}";
 
-                templateFunctionsText[f.name].arguments = argsText;
-                templateFunctionsText[f.name].argumentsLength = f.args.arguments.length;
-            }else if(f.args.condition){
+                objectCode[f.name].arguments = argsText;
+                objectCode[f.name].argumentsLength = f.args.arguments.length;
+                objectCode[f.name].body += body;
+            } else if (f.args.condition) {
                 //add pattern match conditon
-                body= "if("+f.args.condition+"){"+body"}";
+                body = "if(" + f.args.condition + "){" + body + "}";
+                objectCode[f.name].body = body + objectCode[f.name].body;
             }
-            templateFunctionsText[f.name].body += body;
+            
         }
         //Add polymorphism check
-        for(var i = 0; i < ast.templateFunctions.length; i++){
-            var body = templateFunctionsText[ast.templateFunctions[i].name].body;
-            body += 
-                "var argumentInfo='|';";
-            body += 
+        for (var func in objectCode) {
+            objectCode[func].body +=
+                "var argumentInfo='[';";
+            objectCode[func].body +=
                 "for(var i=0; i<arguments.length; i++){";
-            body +=
-                "   argumentInfo += this.typeof_(arguments[i]) + '(=' + arguments[i] + ')|'";
-            body += 
-                "throw Error('Cannot find the function with signature:'+ argumentInfo)";
+            objectCode[func].body +=
+                "   argumentInfo += this.typeof_(arguments[i]) + '(value:' + arguments[i] + ')]';}";
+            objectCode[func].body +=
+                "throw Error('Cannot find the function: " + func +
+                " with arguments signature:'+ argumentInfo)";
+        }
+        if (debug) {
+            console.log(JSON.stringify(objectCode, null, '    '));
         }
     }
 
     /*
-    * @breif this function will make the template function call be called
-    */
-    function makeTemplateFunctionCallable(context){
-        for(var key in templateFunctionsText){
-            context[key] = new function(templateFunctionsText[key].arguments,
-                                        templateFunctionsText[key].body);
+     * @breif this function will make the template function call be called
+     */
+    function makeObjCodeCallable(context) {
+        for (var key in objectCode) {
+            context[key] = new Function(objectCode[key].arguments,
+                objectCode[key].body);
         }
     }
 
-    function compile(context){
-        handleImport();
-        regTemplateFunction();
-        makeTemplateFunctionCallable(context);
+    function compile() {
+        var context = new RunContext();
+        compileObjCode();
+        makeObjCodeCallable(context);
+        return context;
     }
 
+    function run(context, func, values) {
+        return context[func].apply(context, values);
+    }
 
+    var contextCache = {};
     /*
-    * @breif User function, pass in a template file/string, a template function name
-    *        return the running result
-    */
-    function render(input, func, values){
+     * @breif User function, pass in a template file/string, a template function name
+     *        return the running result
+     */
+    function render(input, func, values, callback, cache) {
         init();
-        /* to-do
+        /* 
          * detact if it is a string or a path
          */
-        parse(input);
-        var context = new templateFunctionRunContext();
-        compile(context);
-        try{
-            return context[func].apply(context,values);
-        }catch(e){
-            console.error(e);
-            throw e;
+        if (isPath(input)) {
+            ast.imports[input] = false;
+        } else {
+            //is a string input, try to compile it directly
+            parse(input);
         }
+        link(function() {
+            var context;
+            if (cache) {
+                //to-do, this should be a LRU cache
+                if (contextCache[input]) {
+                    context = contextCache[input];
+                } else {
+                    contextCache[input] = context;
+                    context = compile();
+                }
+            } else {
+                context = compile();
+            }
+            try {
+                callback();
+            } catch (e) {
+                console.error(e);
+                throw e;
+            }
+        });
     }
     return {
-        ast:ast,
-        render:render
+        //Some helpers for test 
+        init: init,
+        getAst: function() {
+            return ast
+        },
+        parse: parse,
+        getObjectCode: function() {
+            return objectCode;
+        },
+        compile: compile,
+        run: run,
+        //User function
+        render: render,
     };
 }));

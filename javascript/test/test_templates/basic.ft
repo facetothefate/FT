@@ -1,5 +1,5 @@
-template typeBlock(type:Nubmber){
-	<div>this is for unknow type<div>
+template typeBlock(type:Number){
+	<div>This is for unknown type<div>
 }
 
 template typeBlock(type==0){

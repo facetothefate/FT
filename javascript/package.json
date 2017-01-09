@@ -1,0 +1,18 @@
+{
+  "name": "FT-js",
+  "version": "1.0.0",
+  "description": "functiaonal template",
+  "main": "src/FT.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha test/unit-test.js"
+  },
+  "author": "Zhifei Fang",
+  "license": "MIT",
+  "devDependencies": {
+    "grunt": "^1.0.1",
+    "mocha": "^3.2.0"
+  }
+}

@@ -1,0 +1,12 @@
+template fab(n:Number){
+	#parseInt(this.fab(n-2))+parseInt(this.fab(n-1))#
+}
+template fab(n<0){
+	0
+}
+template fab(n==0){
+	0
+} 
+template fab(n==1){
+	1
+}
