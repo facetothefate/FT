@@ -46,9 +46,10 @@
         if (obj == null) {
             return String(obj);
         }
-        return typeof obj === "object" || typeof obj === "function" ?
+        var res = typeof obj === "object" || typeof obj === "function" ?
             class2type[class2type.toString.call(obj)] || "object" :
             typeof obj;
+        return res.toLowerCase();
     }
 
     function checkTypeName(s) {
@@ -255,7 +256,12 @@
                         currentArgs = {};
                     } else {
                         //add test syntax here
-                        currentTemplate.args.condition = buffer;
+                        if (buffer.length) {
+                            currentTemplate.args.condition = buffer;
+                        } else {
+                            //template function(void)
+                            currentTemplate.args.type = true;
+                        }
                         buffer = "";
                     }
                 } else if (char === ",") {
@@ -410,36 +416,64 @@
         this.typeof_ = typeof_;
         this[buildInFuncPrefix + "isNumber"] = function(num) {
             return this.typeof_(num) === "number";
-        }
+        };
         this[buildInFuncPrefix + "isString"] = function(func) {
             return this.typeof_(func) === "string";
-        }
+        };
         this[buildInFuncPrefix + "isObject"] = function(obj) {
             return this.typeof_(obj) === "object";
-        }
+        };
         this[buildInFuncPrefix + "isArray"] = function(arr) {
             return this.typeof_(arr) === "array";
-        }
+        };
         this[buildInFuncPrefix + "isBool"] = function(bool) {
             return this.typeof_(bool) === "boolean";
-        }
+        };
         this[buildInFuncPrefix + "isFunction"] = function(func) {
-                return this.typeof_(func) === "function";
-            }
-            //useful for loop
+            return this.typeof_(func) === "function";
+        };
+        //useful for loop
         this.map = function(arr, stepper) {
             if (!this[buildInFuncPrefix + "isArray"](arr)) {
-                throw Error("function: Map:Type Error, 1st args must be an array, it is actually:" + this.typeof_(arr));
+                throw Error("function: map: Type Error, 1st args must be an array, it is actually:" + this.typeof_(arr));
             }
             if (!this[buildInFuncPrefix + "isFunction"](stepper)) {
-                throw Error("function: Map:Type Error, 2nd args must be a function, it is actually:" + this.typeof_(stepper));
+                throw Error("function: map: Type Error, 2nd args must be a function, it is actually:" + this.typeof_(stepper));
             }
             var res = "";
             for (var i = 0; i < arr.length; i++) {
-                res += stepper(arr[i]);
+                res += stepper.call(this, arr[i]);
             }
             return res;
-        }
+        };
+
+        this.loop = function(num, stepper) {
+            if (!this[buildInFuncPrefix + "isNumber"](num)) {
+                throw Error("function: loop: Type Error, 1st args must be an number, it is actually:" + this.typeof_(num));
+            }
+            if (!this[buildInFuncPrefix + "isFunction"](stepper)) {
+                throw Error("function: map: Type Error, 2nd args must be a function, it is actually:" + this.typeof_(stepper));
+            }
+            var res = "";
+            for (var i = 0; i < num; i++) {
+                res += stepper.call(this, i);
+            }
+            return res;
+        };
+
+        this.range = function(begin, end) {
+            if (!this[buildInFuncPrefix + "isNumber"](begin)) {
+                throw Error("function: range: Type Error, 1st args must be an number, it is actually:" + this.typeof_(begin));
+            }
+            if (!this[buildInFuncPrefix + "isNumber"](end)) {
+                throw Error("function: range: Type Error, 2nd args must be an number, it is actually:" + this.typeof_(end));
+            }
+            var res = [];
+            for (var i = begin; i < end; i++) {
+                res.push(i);
+            }
+            return res;
+        };
     };
 
     /*compiler*/

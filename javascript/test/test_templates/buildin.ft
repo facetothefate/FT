@@ -1,0 +1,13 @@
+template li(n:Number){
+	<li>#n#</li>
+}
+template ol_range(){
+	<ol>
+		#this.map(this.range(5,10),this.li)#
+	</ol>
+}
+template ol_loop(){
+	<ol>
+		#this.loop(10,this.li)#
+	</ol>
+}
