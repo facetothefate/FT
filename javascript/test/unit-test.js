@@ -9,7 +9,7 @@ var assert = require('assert');
 var FT = require("../src/ft.js");
 var fs = require("fs");
 describe('Parser test', function() {
-    it('Single template test', function() {
+    it('Single template', function() {
         //make sure we have a clean AST
         FT.init();
         FT.parse("template T(a:Number){ a is #a#}");
@@ -34,12 +34,12 @@ describe('Parser test', function() {
             "imports": {}
         });
     });
-    it('Single import test', function() {
+    it('Single import', function() {
         //make sure we have a clean AST
         FT.init();
-        FT.parse("import test_templates/basic.ft;");
+        FT.parse("import ../test_templates/basic.ft;");
         assert.deepStrictEqual(FT.getAst().imports, {
-            "test_templates/basic.ft": false
+            "../test_templates/basic.ft": false
         });
     });
     it('Mix import and template', function() {
@@ -189,35 +189,35 @@ describe('Parser test', function() {
         //make sure we have a clean AST
         FT.init();
         assert.throws(() => {
-            FT.parse()
+            FT.parse();
         }, Error);
         assert.throws(() => {
-            FT.parse("1")
+            FT.parse("1");
         }, Error);
         assert.throws(() => {
-            FT.parse("t")
+            FT.parse("t");
         }, Error);
         assert.throws(() => {
-            FT.parse("template")
+            FT.parse("template");
         }, Error);
         assert.throws(() => {
-            FT.parse("template{")
+            FT.parse("template{");
         }, Error);
         assert.throws(() => {
-            FT.parse("import")
+            FT.parse("import");
         }, Error);
         assert.throws(() => {
-            FT.parse("import;")
+            FT.parse("import;");
         }, Error);
         assert.throws(() => {
-            FT.parse("template()")
+            FT.parse("template()");
         }, Error);
     });
 
 });
 
 describe('Compiler test', function() {
-    it('Single template compiler test', function() {
+    it('Single template', function() {
         //make sure we have a clean AST
         FT.init();
         FT.parse("template T(a:Number){ a is #a#}");
@@ -264,5 +264,26 @@ describe('Compiler test', function() {
         assert.equal(FT.run(context,"fab",[10]),55);
         assert.equal(FT.run(context,"fab",[20]),6765);
         //assert(res.indexOf("This is the type for: 0")!=-1);
+    });
+});
+
+describe('Render test', function() {
+    it('Simple template', function(done){
+        FT.render("template T(a:Number){ a is #a#}","T",[1],function(res){
+            assert.equal(res," a is 1");
+            done();
+        });
+    });
+    it('Complex template', function(done) {
+        FT.render("test/test_templates/basic.ft","outer",[0,"Hello world!"],function(res){
+            assert(res.indexOf("This is the type for: 0")!=-1);
+            done();
+        });
+    });
+    it('Recusive template', function(done) {
+        FT.render("test/test_templates/fab.ft","fab",[20],function(res){
+            assert.equal(res,6765);
+            done();
+        });
     });
 });

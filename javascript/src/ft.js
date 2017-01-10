@@ -19,7 +19,7 @@
     function readFile(path, callback) {
         if (node) {
             var fs = require('fs');
-            return fs.readFile(path, callback);
+            return fs.readFile(path, 'utf8', callback);
         } else {
             xmlhttp.open("GET", path, true);
             xmlhttp.onreadystatechange = function() {
@@ -61,7 +61,12 @@
     }
 
     function isPath(s) {
-        var regexp = /((ftp|http|https):\/\/)?(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/;
+        var regexp = new RegExp('^((http|https|ftp)?:\\/\\/)?' + // protocol
+            '(((([a-z\\d]([a-z\\d\\-_]*[a-z\\d\\-_])*)\\.?)+[a-z]{2,}|' + // domain name
+            '((\\d{1,3}\\.){3}\\d{1,3})))?' + // OR ip (v4) address
+            '(\\:\\d+)?(\\.{0,3}\\/[-a-z\\d%_.~+]*)*' + // port and path
+            '(\\?[;&a-z\\d%_.~+=-]*)?' + // query string
+            '(\\#[-a-z\\d_]*)?$', 'i'); // fragment locator
         return regexp.test(s);
     }
 
@@ -240,8 +245,8 @@
                 if (char === ")") {
                     if (currentTemplate.args.type) {
                         //check type
-                        if(!checkTypeName(buffer)){
-                            throw Error("Syntax Error: Unknown Type:"+buffer+"\nFile: " +
+                        if (!checkTypeName(buffer)) {
+                            throw Error("Syntax Error: Unknown Type:" + buffer + "\nFile: " +
                                 path + " \nLine:" + lineCount + " Column:" + columnCount);
                         }
                         currentArgs.type = buffer;
@@ -263,8 +268,8 @@
                             path + " \nLine:" + lineCount + " Column:" + columnCount);
                     }
                     //check type
-                    if(!checkTypeName(buffer)){
-                        throw Error("Syntax Error: Unknown Type:"+buffer+"\nFile: " +
+                    if (!checkTypeName(buffer)) {
+                        throw Error("Syntax Error: Unknown Type:" + buffer + "\nFile: " +
                             path + " \nLine:" + lineCount + " Column:" + columnCount);
                     }
                     currentArgs.type = buffer;
@@ -373,7 +378,7 @@
             if (ast.imports.hasOwnProperty(path)) {
                 if (!ast.imports[path]) {
                     allCompiled = false;
-                    readFile(path, 'utf8', function(err, data) {
+                    readFile(path, function(err, data) {
                         if (err) {
                             throw err;
                         } else {
@@ -486,7 +491,7 @@
                 body = "if(" + f.args.condition + "){" + body + "}";
                 objectCode[f.name].body = body + objectCode[f.name].body;
             }
-            
+
         }
         //Add polymorphism check
         for (var func in objectCode) {
@@ -556,7 +561,8 @@
                 context = compile();
             }
             try {
-                callback();
+                var res = run(context, func, values)
+                callback(res);
             } catch (e) {
                 console.error(e);
                 throw e;
