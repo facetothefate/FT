@@ -11,7 +11,8 @@ template T(decs:String){
 }
 ```
 Define the template function is easy, provide the name and arguments.
-Please be advised the FT function have type check for all the arguments, you should declare the each type of them.
+Please be advised that a FT function have type check for its arguments, you should declare a type for each argument.\
+
 For now the javascript version we have the following types support
 
  - Number
@@ -24,12 +25,12 @@ For now the javascript version we have the following types support
  - Error
  - RegExp
 
-The string between two "#" should be a javascript expression, the FT will compute the value of it and concat other parts.
+The string between two "#" should be a <b>javascript expression</b>, the FT will compute the value of it and concat other parts.
 
 Use the render method to call the template function:
 
 ```javascript
-var ft = require('ft');
+var ft = require('ft'); //for node, but also you can use it at front end
 ft.render(
 	"path/to/file", 	// path to your template file
 	"T",// the template funtion you want to call
@@ -42,7 +43,7 @@ ft.render(
 
 ## Never write if/for/while
 
-The template function of FT are pure funtion, it support the pattern match, so you never need an if
+A template function of FT is a pure funtion, it supports the pattern match, so you will never need an if
 
 ```
 template li(type:Number){
@@ -60,10 +61,9 @@ template ul(type:Number){
 	</ul>
 }
 ```
-You can call the template function inside a template function by the this pointer
+You can call the template function inside a template function by the <b>this</b> pointer
 
-
-You don't need a "while" since we have template function
+You don't need a "while" since we have template functions
 
 ```
 template fab(n:Number){
@@ -80,7 +80,7 @@ template fab(n==1){
 }
 ``` 
 
-The template function always return a string, so if you need it to do something else.
+A template function always returns a string, don't forget cast the type
 
 We also provide some build in functions for you to handle the loop
 
@@ -107,14 +107,14 @@ template ol_loop(){
 
 So call the ol_range, you will have
 
-```
+```html
 	<ol>
 	<li>5</li><li>6</li><li>7</li><li>8</li><li>9</li>
 	</ol>
 ``` 
 Call the ol_loop, you will have 
 
-```
+```html
 	<ol>
 	<li>0</li><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li><li>8</li><li>9</li>
 	</ol>
