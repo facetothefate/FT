@@ -1,5 +1,5 @@
 # FT
-Functional Template
+Functional Template, use pure function to describe template
 
 ## Quick start
 
@@ -13,7 +13,6 @@ template T(decs:String){
 Define the template function is easy, provide the name and arguments.
 Please be advised the FT function have type check for all the arguments, you should declare the each type of them.
 For now the javascript version we have the following types support
-
 
  - Number
  - String
@@ -123,3 +122,13 @@ Call the ol_loop, you will have
 
 ## Import
 Coming soon
+
+## Contribute
+
+Issues, Issues, Issues！
+
+The javascript source code is using standard js
+http://standardjs.com/
+
+Also, I have a circle CI for this project
+https://circleci.com/gh/facetothefate/FT

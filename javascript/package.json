@@ -2,7 +2,7 @@
   "name": "FT-js",
   "version": "1.0.0",
   "description": "functiaonal template",
-  "main": "src/FT.js",
+  "main": "src/ft.js",
   "directories": {
     "test": "test"
   },
