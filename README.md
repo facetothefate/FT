@@ -11,7 +11,7 @@ template T(decs:String){
 }
 ```
 Define the template function is easy, provide the name and arguments.
-Please be advised that a FT function have type check for its arguments, you should declare a type for each argument.\
+Please be advised that a FT function have type check for its arguments, you should declare a type for each argument.
 
 For now the javascript version we have the following types support
 
@@ -101,9 +101,9 @@ template ol_loop(){
 }
 ```
 
-- <b>range(start:Number,end:Number)</b> This function will return an array which have elements [start,end)
+- <b>range(start:Number,end:Number)</b>    This function will return an array which have elements [start,end)
 - <b>loop(num:Number,stepper:Function)</b> This function will call the stepper with an argument in [0,num) num times
-- <b>map(data:Array,stepper:Function)</b> This function will get each item in the array and call the stepper by providing item as the arguments
+- <b>map(data:Array,stepper:Function)</b>  This function will get each item in the array and call the stepper by providing item as its argument
 
 So call the ol_range, you will have
 
